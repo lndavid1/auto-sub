@@ -12,18 +12,12 @@ if ($status) {
     git commit -m "Auto-update: $timestamp" *>$null
 }
 
-# Push to GitHub if authenticated
-$accounts = & "$gitBin\git-credential-manager.exe" github list 2>$null
-if ($accounts) {
-    git push -u origin main *>$null
-    if ($LASTEXITCODE -ne 0) {
-        # Auto-create repo on GitHub if it doesn't exist yet
-        $credOutput = "protocol=https`nhost=github.com`n`n" | git credential fill 2>$null
-        $token = $null
-        foreach ($line in $credOutput) {
-            if ($line -match "^password=(.+)$") { $token = $Matches[1].Trim() }
-        }
-        if ($token) {
+$tokenFile = "E:\tool\auto sub\.git\gh_token.txt"
+if (Test-Path $tokenFile) {
+    $token = (Get-Content $tokenFile -Raw).Trim()
+    if ($token) {
+        git push -u origin main *>$null
+        if ($LASTEXITCODE -ne 0) {
             $headers = @{
                 "Authorization" = "Bearer $token"
                 "Accept"        = "application/vnd.github+json"
@@ -40,5 +34,4 @@ if ($accounts) {
     }
 }
 
-# Output empty JSON object required by Antigravity PostToolUse hook contract
 Write-Output "{}"
