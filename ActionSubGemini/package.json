@@ -1,0 +1,21 @@
+{
+  "name": "actionsub-gemini-cep",
+  "version": "1.0.0",
+  "description": "Adobe Premiere Pro CEP Extension for AI Visual Action Subtitling powered by Google Gemini 3.8 Flash",
+  "main": "index.html",
+  "scripts": {
+    "test": "echo \"Ready for Adobe Premiere Pro CEP\" && exit 0"
+  },
+  "keywords": [
+    "adobe",
+    "premiere-pro",
+    "cep",
+    "gemini",
+    "gemini-3.8-flash",
+    "subtitles",
+    "action-recognition",
+    "srt"
+  ],
+  "author": "Antigravity Senior CEP Developer",
+  "license": "MIT"
+}

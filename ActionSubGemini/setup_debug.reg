@@ -1,0 +1,28 @@
+Windows Registry Editor Version 5.00
+
+; Kích hoạt chế độ gỡ lỗi (PlayerDebugMode) cho Premiere Pro CEP Extension
+; Hỗ trợ các phiên bản CEP từ CSXS.9 đến CSXS.16 (Premiere Pro CC 2019 đến Premiere Pro 2025+)
+
+[HKEY_CURRENT_USER\Software\Adobe\CSXS.9]
+"PlayerDebugMode"="1"
+
+[HKEY_CURRENT_USER\Software\Adobe\CSXS.10]
+"PlayerDebugMode"="1"
+
+[HKEY_CURRENT_USER\Software\Adobe\CSXS.11]
+"PlayerDebugMode"="1"
+
+[HKEY_CURRENT_USER\Software\Adobe\CSXS.12]
+"PlayerDebugMode"="1"
+
+[HKEY_CURRENT_USER\Software\Adobe\CSXS.13]
+"PlayerDebugMode"="1"
+
+[HKEY_CURRENT_USER\Software\Adobe\CSXS.14]
+"PlayerDebugMode"="1"
+
+[HKEY_CURRENT_USER\Software\Adobe\CSXS.15]
+"PlayerDebugMode"="1"
+
+[HKEY_CURRENT_USER\Software\Adobe\CSXS.16]
+"PlayerDebugMode"="1"

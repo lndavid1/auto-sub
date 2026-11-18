@@ -1,0 +1,16 @@
+{
+  "github-auto-sync": {
+    "PostToolUse": [
+      {
+        "matcher": "edit_file|write_file",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \"E:\\tool\\auto sub\\.agents\\scripts\\auto_push.ps1\"",
+            "timeout": 25
+          }
+        ]
+      }
+    ]
+  }
+}
