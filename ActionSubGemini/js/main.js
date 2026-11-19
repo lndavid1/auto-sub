@@ -2151,16 +2151,30 @@ ${JSON.stringify(payloadForAI, null, 2)}`;
             setProgress(25);
 
             let completedChunksCount = 0;
+            let abortWorkers = false;
 
             const processOneChunk = async (chunk) => {
-                const { chunkIndex, chunkPath, actualDurationSec } = chunk;
+                const { chunkIndex, chunkPath, actualDurationSec, planStartSec, planDurationSec } = chunk;
                 const exactChunkOffsetSec = chunkOffsets[chunkIndex];
                 const chunkLabel = `[Phân đoạn ${chunkIndex + 1}/${totalChunks}]`;
                 const timeRangeStr = `${formatSecondsToMMSS(exactChunkOffsetSec)} ➔ ${formatSecondsToMMSS(exactChunkOffsetSec + actualDurationSec)}`;
+                const sliceStart = (planStartSec !== undefined) ? planStartSec : exactChunkOffsetSec;
+                const sliceDur = (planDurationSec !== undefined) ? planDurationSec : actualDurationSec;
 
                 try {
-                    addLog(`🚀 ${chunkLabel} Upload (${formatBytes(fs.statSync(chunkPath).size)}, ${timeRangeStr})...`, "dim");
-                    const fallbackOptions = { sourcePath: chunkPath, startSec: 0, durationSec: actualDurationSec };
+                    // Tự động phục hồi file phân đoạn nếu bị hệ thống/trình dọn rác xoá khỏi thư mục tạm trong lúc chờ các chunk trước
+                    if (!fs.existsSync(chunkPath) || fs.statSync(chunkPath).size < 1024) {
+                        addLog(`🔄 ${chunkLabel} Phát hiện file tạm bị thiếu, đang tự động cắt lại phân đoạn (${timeRangeStr})...`, "warning");
+                        const dirOfChunk = path.dirname(chunkPath);
+                        if (!fs.existsSync(dirOfChunk)) {
+                            fs.mkdirSync(dirOfChunk, { recursive: true });
+                        }
+                        await extractSingleChunkVideo(masterVideoPath, sliceStart, sliceDur, chunkPath);
+                    }
+
+                    const chunkSize = fs.existsSync(chunkPath) ? fs.statSync(chunkPath).size : 0;
+                    addLog(`🚀 ${chunkLabel} Upload (${formatBytes(chunkSize)}, ${timeRangeStr})...`, "dim");
+                    const fallbackOptions = { sourcePath: masterVideoPath, startSec: sliceStart, durationSec: sliceDur };
                     const { activeFile, uploadedFile } = await uploadAndActivateVideo(chunkPath, apiKey, fallbackOptions, tempFilesTracker);
                     uploadedFileResources.push(uploadedFile);
 
@@ -2185,6 +2199,7 @@ ${JSON.stringify(payloadForAI, null, 2)}`;
                         srt: shiftedSrt
                     };
                 } catch (err) {
+                    abortWorkers = true;
                     addLog(`❌ ${chunkLabel} Thất bại: ${err.message}`, "error");
                     throw err;
                 }
@@ -2194,13 +2209,20 @@ ${JSON.stringify(payloadForAI, null, 2)}`;
             let nextIdx = 0;
             const workerCount = Math.min(CONCURRENCY_LIMIT, totalChunks);
             const workers = Array.from({ length: workerCount }, async () => {
-                while (nextIdx < totalChunks) {
+                while (nextIdx < totalChunks && !abortWorkers) {
                     const currentIdx = nextIdx++;
-                    results[currentIdx] = await processOneChunk(chunkItems[currentIdx]);
+                    if (currentIdx < totalChunks) {
+                        results[currentIdx] = await processOneChunk(chunkItems[currentIdx]);
+                    }
                 }
             });
 
-            await Promise.all(workers);
+            // Đợi TẤT CẢ các worker đang chạy kết thúc hẳn rồi mới cho phép chuyển tiếp hoặc dọn file tạm trong finally
+            const settledWorkers = await Promise.allSettled(workers);
+            const rejectedWorker = settledWorkers.find(s => s.status === 'rejected');
+            if (rejectedWorker) {
+                throw rejectedWorker.reason;
+            }
             srtChunksResults = results;
         }
 
