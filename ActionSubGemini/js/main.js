@@ -91,8 +91,16 @@ GUIDELINES:
     const btnText = document.getElementById('btnText');
     const progressBarContainer = document.getElementById('progressBarContainer');
     const progressBarInner = document.getElementById('progressBarInner');
+    const logPanel = document.getElementById('logPanel');
+    const logStatusDot = document.getElementById('logStatusDot');
+    const logCountBadge = document.getElementById('logCountBadge');
+    const logProgressBadge = document.getElementById('logProgressBadge');
     const statusLog = document.getElementById('statusLog');
+    const btnCopyLog = document.getElementById('btnCopyLog');
+    const btnExpandLog = document.getElementById('btnExpandLog');
     const btnClearLog = document.getElementById('btnClearLog');
+    const styleSectionCard = document.getElementById('styleSectionCard');
+    const toggleStyleSectionBtn = document.getElementById('toggleStyleSectionBtn');
     const engineStatus = document.getElementById('engineStatus');
 
     // State
