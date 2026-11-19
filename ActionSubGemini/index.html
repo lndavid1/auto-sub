@@ -12,191 +12,218 @@
         <header class="header">
             <div class="brand">
                 <div class="brand-icon">⚡</div>
-                <span class="brand-title">ActionSub AI</span>
+                <div class="brand-text">
+                    <span class="brand-title">ActionSub AI</span>
+                    <span class="brand-subtitle">2-Pass Visual &amp; Storyline Subtitler</span>
+                </div>
             </div>
-            <span class="brand-badge" id="headerBadge">AI Gemini</span>
+            <span class="brand-badge" id="headerBadge">gemini-3.8-flash</span>
         </header>
 
-        <!-- Main Form Content -->
+        <!-- Scrollable Settings Area -->
         <main class="form-content">
-            <!-- API Key -->
-            <div class="form-group">
-                <label for="apiKey">
-                    <span>Google Gemini API Key</span>
-                    <a id="getApiKeyLink" title="Mở trang Google AI Studio">Lấy Key miễn phí ↗</a>
-                </label>
-                <div class="input-container">
-                    <input type="password" id="apiKey" placeholder="Nhập AIzaSy..." autocomplete="off" spellcheck="false">
-                    <button type="button" class="btn-toggle-eye" id="toggleApiKey" title="Ẩn/Hiện API Key">👁️</button>
-                </div>
-            </div>
-
-            <!-- Model Input & Auto-Fetch -->
-            <div class="form-group">
-                <label for="modelName">
-                    <span>Mô hình AI (Gemini Model)</span>
-                    <span id="modelCountBadge" style="font-size: 10px; color: var(--text-muted);"></span>
-                </label>
-                <div class="input-with-button">
-                    <input type="text" id="modelName" list="modelSuggestions" value="gemini-3.8-flash" placeholder="Ví dụ: gemini-3.8-flash" autocomplete="off" spellcheck="false">
-                    <datalist id="modelSuggestions">
-                        <option value="gemini-3.8-flash">gemini-3.8-flash (Mặc định)</option>
-                        <option value="gemini-3.8-pro">gemini-3.8-pro (Chính xác cao)</option>
-                    </datalist>
-                    <button type="button" class="btn-secondary" id="btnFetchModels" title="Tự động dò danh sách model khả dụng từ Google API với key hiện tại">
-                        <span id="fetchSpinner" class="spinner" style="width: 10px; height: 10px; margin-right: 2px;"></span>
-                        <span>🔄 Lấy Model</span>
-                    </button>
-                </div>
-            </div>
-
-            <!-- Language Dropdown -->
-            <div class="form-group">
-                <label for="targetLanguage">Ngôn ngữ phụ đề (Subtitle Language)</label>
-                <select id="targetLanguage">
-                    <option value="Tiếng Việt" selected>Tiếng Việt (Vietnamese)</option>
-                    <option value="English">English (Tiếng Anh)</option>
-                    <option value="Japanese">日本語 (Japanese)</option>
-                    <option value="Korean">한국어 (Korean)</option>
-                    <option value="Chinese (Simplified)">简体中文 (Chinese)</option>
-                    <option value="French">Français (French)</option>
-                    <option value="German">Deutsch (German)</option>
-                    <option value="Spanish">Español (Spanish)</option>
-                    <option value="custom">Tuỳ chỉnh (Custom)...</option>
-                </select>
-                <input type="text" id="customLanguageInput" placeholder="Nhập ngôn ngữ mong muốn..." style="display: none; margin-top: 4px;">
-            </div>
-
-            <!-- Subtitle Persona / Mode -->
-            <div class="form-group persona-group">
-                <label for="personaMode">
-                    <span>🎯 Phong cách Phụ đề & Khán giả (Subtitle Persona)</span>
-                    <span class="persona-badge" id="personaBadge">Standard</span>
-                </label>
-                <select id="personaMode" class="persona-select">
-                    <option value="standard" selected>⚡ Tiêu chuẩn: Mô tả hành vi trực quan (Standard Action Recognition)</option>
-                    <option value="us_senior_diy">🇺🇸 Khán giả Nam 65+ tại Mỹ (Mê mài dũa, dụng cụ & DIY - Gần gũi, hướng dẫn)</option>
-                </select>
-            </div>
-
-            <!-- Storyline Context Input -->
-            <div class="form-group">
-                <label for="storyContext">
-                    <span>📖 Chủ đề / Cốt truyện chính của Video (Storyline Context)</span>
-                    <span style="font-size: 10px; color: var(--text-muted);">Tuỳ chọn</span>
-                </label>
-                <input type="text" id="storyContext" placeholder="VD: Cách chế cữ mài mũi khoan sắc bén tại nhà từ vật liệu cũ..." autocomplete="off">
-            </div>
-
-            <!-- Subtitle Style & System Prompt -->
-            <div class="form-group">
-                <label for="systemPrompt">
-                    <span>Prompt Phân Tích Hành Vi (Action Prompt)</span>
-                    <a id="resetPromptBtn" title="Khôi phục prompt mặc định">Mặc định ↺</a>
-                </label>
-                <textarea id="systemPrompt" rows="3" spellcheck="false"></textarea>
-            </div>
-
-            <!-- FFmpeg Compression Toggle -->
-            <label class="checkbox-group">
-                <input type="checkbox" id="enableFfmpeg" checked>
-                <div class="checkbox-label">
-                    <span class="title">Tối ưu hoá video trước khi gửi (FFmpeg)</span>
-                    <span class="desc">Nén trực tiếp các file video clip (480x270, 10fps, bỏ audio) và chia phân đoạn 90s chuẩn yuv420p.</span>
-                </div>
-            </label>
-
-            <!-- Subtitle Style & Timeline Settings Section -->
-            <div class="style-section">
-                <div class="style-section-header">
-                    <span>🎬 Kiểu Chữ & Timeline (Subtitle Style)</span>
-                    <span class="badge">Auto Sync</span>
+            <!-- CARD 1: Kết nối AI & Ngôn ngữ -->
+            <section class="ui-card">
+                <div class="ui-card-header">
+                    <span class="ui-card-title">🤖 Cấu hình AI &amp; Ngôn ngữ</span>
+                    <span id="modelCountBadge" class="card-meta-badge">2-Pass AI</span>
                 </div>
 
-                <!-- Toggle Auto Insert Timeline -->
-                <label class="checkbox-group" style="padding: 6px 8px; margin-bottom: 2px;">
-                    <input type="checkbox" id="autoInsertTimeline" checked>
-                    <div class="checkbox-label">
-                        <span class="title">Tự động đẩy lên Timeline sau khi tạo</span>
-                        <span class="desc">Chèn trực tiếp phụ đề vào Sequence đang mở</span>
+                <!-- API Key -->
+                <div class="form-group">
+                    <label for="apiKey">
+                        <span>Google Gemini API Key</span>
+                        <a id="getApiKeyLink" title="Mở trang Google AI Studio">Lấy Key miễn phí ↗</a>
+                    </label>
+                    <div class="input-container">
+                        <input type="password" id="apiKey" placeholder="Nhập AIzaSy..." autocomplete="off" spellcheck="false">
+                        <button type="button" class="btn-toggle-eye" id="toggleApiKey" title="Ẩn/Hiện API Key">👁️</button>
                     </div>
-                </label>
+                </div>
 
-                <!-- Insert Mode Selection -->
-                <div class="form-group" id="insertModeContainer">
-                    <label for="insertMode">Chế độ chèn lên Timeline</label>
-                    <select id="insertMode">
-                        <option value="caption_track" selected>Caption Track (Chuẩn phụ đề SRT Premiere)</option>
-                        <option value="xml_graphic_track">Graphic Text Track (Áp dụng Full Font/Size/Color/Stroke)</option>
+                <!-- Model Input & Auto-Fetch -->
+                <div class="form-row-model">
+                    <div class="form-group">
+                        <label for="modelName">
+                            <span>Mô hình AI (Gemini Model)</span>
+                        </label>
+                        <div class="input-with-button">
+                            <input type="text" id="modelName" list="modelSuggestions" value="gemini-3.8-flash" placeholder="Ví dụ: gemini-3.8-flash" autocomplete="off" spellcheck="false">
+                            <datalist id="modelSuggestions">
+                                <option value="gemini-3.8-flash">gemini-3.8-flash (Mặc định)</option>
+                                <option value="gemini-3.8-pro">gemini-3.8-pro (Chính xác cao)</option>
+                            </datalist>
+                            <button type="button" class="btn-secondary" id="btnFetchModels" title="Tự động dò danh sách model khả dụng từ Google API với key hiện tại">
+                                <span id="fetchSpinner" class="spinner" style="width: 10px; height: 10px; margin-right: 2px;"></span>
+                                <span>🔄 Lấy Model</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Language Dropdown -->
+                    <div class="form-group">
+                        <label for="targetLanguage">Ngôn ngữ xuất (Language)</label>
+                        <select id="targetLanguage">
+                            <option value="Tiếng Việt" selected>Tiếng Việt (Vietnamese)</option>
+                            <option value="English">English (Tiếng Anh)</option>
+                            <option value="Japanese">日本語 (Japanese)</option>
+                            <option value="Korean">한국어 (Korean)</option>
+                            <option value="Chinese (Simplified)">简体中文 (Chinese)</option>
+                            <option value="French">Français (French)</option>
+                            <option value="German">Deutsch (German)</option>
+                            <option value="Spanish">Español (Spanish)</option>
+                            <option value="custom">Tuỳ chỉnh (Custom)...</option>
+                        </select>
+                        <input type="text" id="customLanguageInput" placeholder="Nhập ngôn ngữ mong muốn..." style="display: none; margin-top: 4px;">
+                    </div>
+                </div>
+            </section>
+
+            <!-- CARD 2: Phong cách Kể chuyện & Cốt truyện -->
+            <section class="ui-card">
+                <div class="ui-card-header">
+                    <span class="ui-card-title">🎯 Phong cách &amp; Mạch truyện (Storyline)</span>
+                    <span class="persona-badge" id="personaBadge">Standard</span>
+                </div>
+
+                <!-- Subtitle Persona / Mode -->
+                <div class="form-group persona-group">
+                    <label for="personaMode">
+                        <span>Chân dung Khán giả &amp; Giọng kể (Persona)</span>
+                    </label>
+                    <select id="personaMode" class="persona-select">
+                        <option value="standard" selected>⚡ Tiêu chuẩn: Mô tả hành vi trực quan (Standard Action Recognition)</option>
+                        <option value="us_senior_diy">🇺🇸 Khán giả Nam 65+ Hoa Kỳ (70% Gây tò mò + 30% Bí quyết nhà nghề)</option>
                     </select>
                 </div>
 
-                <!-- Detailed Text Style Settings -->
-                <div id="styleControls" style="display: flex; flex-direction: column; gap: 8px;">
-                    <!-- Row 1: Font & Size -->
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="subFont">Font chữ</label>
-                            <input type="text" id="subFont" list="fontSuggestions" value="Arial-BoldMT" placeholder="Arial-BoldMT">
-                            <datalist id="fontSuggestions">
-                                <option value="Arial-BoldMT">Arial Bold</option>
-                                <option value="Montserrat-Bold">Montserrat Bold</option>
-                                <option value="Impact">Impact</option>
-                                <option value="Tahoma-Bold">Tahoma Bold</option>
-                                <option value="SegoeUI-Bold">Segoe UI Bold</option>
-                            </datalist>
+                <!-- Storyline Context Input -->
+                <div class="form-group">
+                    <label for="storyContext">
+                        <span>📖 Chủ đề / Cốt truyện chính của Video</span>
+                        <span class="optional-tag">Tuỳ chọn</span>
+                    </label>
+                    <input type="text" id="storyContext" placeholder="VD: Cách chế cữ mài mũi khoan sắc bén tại nhà từ vật liệu cũ..." autocomplete="off">
+                </div>
+
+                <!-- Subtitle Style & System Prompt -->
+                <div class="form-group">
+                    <label for="systemPrompt">
+                        <span>Prompt Quan Sát Hành Vi (Bước 1)</span>
+                        <a id="resetPromptBtn" title="Khôi phục prompt mặc định">Mặc định ↺</a>
+                    </label>
+                    <textarea id="systemPrompt" rows="2" spellcheck="false"></textarea>
+                </div>
+
+                <!-- FFmpeg Compression Toggle -->
+                <label class="checkbox-group">
+                    <input type="checkbox" id="enableFfmpeg" checked>
+                    <div class="checkbox-label">
+                        <span class="title">Tối ưu hoá &amp; Chia phân đoạn 90s bằng FFmpeg</span>
+                        <span class="desc">Nén nhanh 480x270 (10fps, yuv420p, bỏ audio) và tự động phục hồi phân đoạn tạm.</span>
+                    </div>
+                </label>
+            </section>
+
+            <!-- CARD 3: Kiểu Chữ & Timeline Settings (Collapsible) -->
+            <section class="ui-card style-section" id="styleSectionCard">
+                <div class="style-section-header" id="toggleStyleSectionBtn" title="Nhấn để đóng/mở cài đặt kiểu chữ">
+                    <div class="style-header-left">
+                        <span>🎬 Kiểu Chữ &amp; Timeline (Subtitle Style)</span>
+                        <span class="badge">Auto Sync</span>
+                    </div>
+                    <span class="collapse-chevron" id="styleCollapseIcon">▾</span>
+                </div>
+
+                <div class="style-section-body" id="styleSectionBody">
+                    <!-- Toggle Auto Insert Timeline -->
+                    <label class="checkbox-group" style="padding: 6px 8px; margin-bottom: 2px;">
+                        <input type="checkbox" id="autoInsertTimeline" checked>
+                        <div class="checkbox-label">
+                            <span class="title">Tự động đẩy lên Timeline sau khi tạo</span>
+                            <span class="desc">Chèn trực tiếp phụ đề vào Sequence đang mở</span>
                         </div>
-                        <div class="form-group">
-                            <label for="subSize">Cỡ chữ (Size)</label>
-                            <input type="number" id="subSize" value="65" min="20" max="200" step="5">
-                        </div>
+                    </label>
+
+                    <!-- Insert Mode Selection -->
+                    <div class="form-group" id="insertModeContainer">
+                        <label for="insertMode">Chế độ chèn lên Timeline</label>
+                        <select id="insertMode">
+                            <option value="caption_track" selected>Caption Track (Chuẩn phụ đề SRT Premiere)</option>
+                            <option value="xml_graphic_track">Graphic Text Track (Áp dụng Full Font/Size/Color/Stroke)</option>
+                        </select>
                     </div>
 
-                    <!-- Row 2: Text Color & Stroke Color -->
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="subColor">Màu chữ</label>
-                            <div class="color-input-wrapper">
-                                <input type="color" id="subColor" value="#FFFFFF">
-                                <span class="hex-val" id="subColorHex">#FFFFFF</span>
+                    <!-- Detailed Text Style Settings -->
+                    <div id="styleControls" class="style-controls-grid">
+                        <!-- Row 1: Font & Size -->
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="subFont">Font chữ</label>
+                                <input type="text" id="subFont" list="fontSuggestions" value="Arial-BoldMT" placeholder="Arial-BoldMT">
+                                <datalist id="fontSuggestions">
+                                    <option value="Arial-BoldMT">Arial Bold</option>
+                                    <option value="Montserrat-Bold">Montserrat Bold</option>
+                                    <option value="Impact">Impact</option>
+                                    <option value="Tahoma-Bold">Tahoma Bold</option>
+                                    <option value="SegoeUI-Bold">Segoe UI Bold</option>
+                                </datalist>
+                            </div>
+                            <div class="form-group">
+                                <label for="subSize">Cỡ chữ (Size)</label>
+                                <input type="number" id="subSize" value="65" min="20" max="200" step="5">
                             </div>
                         </div>
-                        <div class="form-group">
-                            <label for="subStrokeColor">Màu viền chữ</label>
-                            <div class="color-input-wrapper">
-                                <input type="color" id="subStrokeColor" value="#000000">
-                                <span class="hex-val" id="subStrokeColorHex">#000000</span>
+
+                        <!-- Row 2: Text Color & Stroke Color -->
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="subColor">Màu chữ</label>
+                                <div class="color-input-wrapper">
+                                    <input type="color" id="subColor" value="#FFFFFF">
+                                    <span class="hex-val" id="subColorHex">#FFFFFF</span>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="subStrokeColor">Màu viền chữ</label>
+                                <div class="color-input-wrapper">
+                                    <input type="color" id="subStrokeColor" value="#000000">
+                                    <span class="hex-val" id="subStrokeColorHex">#000000</span>
+                                </div>
                             </div>
                         </div>
-                    </div>
 
-                    <!-- Row 3: Stroke Width & Position Y -->
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="subStrokeWidth">Độ dày viền (Stroke)</label>
-                            <input type="number" id="subStrokeWidth" value="8" min="0" max="25" step="1">
+                        <!-- Row 3: Stroke Width & Position Y -->
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="subStrokeWidth">Độ dày viền (Stroke)</label>
+                                <input type="number" id="subStrokeWidth" value="8" min="0" max="25" step="1">
+                            </div>
+                            <div class="form-group">
+                                <label for="subPosY">Vị trí dọc Y (% cao)</label>
+                                <input type="number" id="subPosY" value="85" min="20" max="98" step="1">
+                            </div>
                         </div>
-                        <div class="form-group">
-                            <label for="subPosY">Vị trí dọc Y (% cao)</label>
-                            <input type="number" id="subPosY" value="85" min="20" max="98" step="1">
-                        </div>
-                    </div>
 
-                    <!-- Row 4: Max Chars Per Line -->
-                    <div class="form-group">
-                        <label for="maxCharsPerLine">
-                            <span>Tối đa ký tự / dòng (Word-Wrap)</span>
-                            <span style="font-size: 10px; color: var(--text-muted);">Tự động ngắt 1-2 dòng</span>
-                        </label>
-                        <input type="number" id="maxCharsPerLine" value="42" min="15" max="100" step="1">
+                        <!-- Row 4: Max Chars Per Line -->
+                        <div class="form-group">
+                            <label for="maxCharsPerLine">
+                                <span>Tối đa ký tự / dòng (Sequential Word-Wrap)</span>
+                                <span class="optional-tag">1-2 dòng cân đối</span>
+                            </label>
+                            <input type="number" id="maxCharsPerLine" value="42" min="15" max="100" step="1">
+                        </div>
                     </div>
                 </div>
-            </div>
+            </section>
+        </main>
 
+        <!-- Pinned Bottom Dock: Action Button + Progress + Enhanced Log Card -->
+        <div class="bottom-dock">
             <!-- Action Button -->
             <button type="button" id="btnProcess" class="btn-primary">
                 <span class="spinner" id="btnSpinner"></span>
-                <span id="btnText">⚡ Phân Tích Hành Vi & Tạo SRT</span>
+                <span id="btnText">⚡ Phân Tích Hành Vi &amp; Tạo SRT</span>
             </button>
 
             <!-- Progress Bar -->
@@ -204,23 +231,36 @@
                 <div class="progress-bar-inner" id="progressBarInner"></div>
             </div>
 
-            <!-- Status / Log Box -->
-            <div class="log-panel">
+            <!-- Enhanced Status / Log Panel -->
+            <div class="log-panel" id="logPanel">
                 <div class="log-header">
-                    <span>Nhật ký tiến trình (Log)</span>
-                    <button type="button" class="btn-clear" id="btnClearLog">Xoá</button>
+                    <div class="log-header-left">
+                        <span class="log-status-dot" id="logStatusDot"></span>
+                        <span class="log-title">Nhật ký tiến trình</span>
+                        <span class="log-count-badge" id="logCountBadge">1 dòng</span>
+                        <span class="log-progress-badge" id="logProgressBadge" style="display: none;">0%</span>
+                    </div>
+                    <div class="log-header-actions">
+                        <button type="button" class="btn-log-action" id="btnCopyLog" title="Sao chép toàn bộ nội dung log">📋 Copy</button>
+                        <button type="button" class="btn-log-action" id="btnExpandLog" title="Phóng to / Thu nhỏ khung Nhật ký">⤢ Mở rộng</button>
+                        <button type="button" class="btn-log-action btn-clear" id="btnClearLog" title="Xoá sạch nhật ký">Xoá</button>
+                    </div>
                 </div>
                 <div class="log-box" id="statusLog">
-                    <div class="log-line dim">Sẵn sàng. Hãy chọn 1 clip trong Premiere và nhấn nút.</div>
+                    <div class="log-line dim">
+                        <span class="log-time">--:--:--</span>
+                        <span class="log-tag">READY</span>
+                        <span class="log-msg">Sẵn sàng. Hãy mở Sequence trong Premiere và nhấn nút bắt đầu.</span>
+                    </div>
                 </div>
             </div>
-        </main>
 
-        <!-- Footer -->
-        <footer class="footer">
-            <span>CEP 11/12 Engine</span>
-            <span id="engineStatus">Ready</span>
-        </footer>
+            <!-- Footer -->
+            <footer class="footer">
+                <span>CEP 11/12 • Two-Pass Storyline AI</span>
+                <span id="engineStatus">Ready</span>
+            </footer>
+        </div>
     </div>
 
     <!-- Scripts -->
