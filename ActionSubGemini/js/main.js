@@ -263,26 +263,84 @@ GUIDELINES:
     // ==========================================
     // LOGGING & UI HELPERS
     // ==========================================
+    function getLogTagLabel(type) {
+        switch (type) {
+            case 'step': return 'BƯỚC';
+            case 'success': return 'HOÀN TẤT';
+            case 'warning': return 'LƯU Ý';
+            case 'error': return 'LỖI';
+            case 'dim': return 'TIẾN TRÌNH';
+            default: return 'THÔNG TIN';
+        }
+    }
+
+    function updateLogCountBadge() {
+        if (!logCountBadge || !statusLog) return;
+        const count = statusLog.querySelectorAll('.log-line').length;
+        logCountBadge.textContent = `${count} dòng`;
+    }
+
     function addLog(message, type = 'info') {
-        const timeStr = new Date().toLocaleTimeString();
+        const now = new Date();
+        const hh = String(now.getHours()).padStart(2, '0');
+        const mm = String(now.getMinutes()).padStart(2, '0');
+        const ss = String(now.getSeconds()).padStart(2, '0');
+        const timeStr = `${hh}:${mm}:${ss}`;
+
         const line = document.createElement('div');
         line.className = `log-line ${type}`;
-        line.textContent = `[${timeStr}] ${message}`;
+
+        const timeSpan = document.createElement('span');
+        timeSpan.className = 'log-time';
+        timeSpan.textContent = timeStr;
+
+        const tagSpan = document.createElement('span');
+        tagSpan.className = 'log-tag';
+        tagSpan.textContent = getLogTagLabel(type);
+
+        const msgSpan = document.createElement('span');
+        msgSpan.className = 'log-msg';
+        msgSpan.textContent = message;
+
+        line.appendChild(timeSpan);
+        line.appendChild(tagSpan);
+        line.appendChild(msgSpan);
+
         statusLog.appendChild(line);
         statusLog.scrollTop = statusLog.scrollHeight;
+        updateLogCountBadge();
+
+        if (logStatusDot) {
+            if (type === 'error') {
+                logStatusDot.className = 'log-status-dot error';
+            } else if (isProcessing) {
+                logStatusDot.className = 'log-status-dot running';
+            } else {
+                logStatusDot.className = 'log-status-dot';
+            }
+        }
     }
 
     function clearLog() {
         statusLog.innerHTML = '';
+        updateLogCountBadge();
+        if (logStatusDot && !isProcessing) {
+            logStatusDot.className = 'log-status-dot';
+        }
     }
 
     function setProgress(percent, isIndeterminate = false) {
+        const clamped = Math.min(100, Math.max(0, Math.round(percent || 0)));
         progressBarContainer.style.display = 'block';
+        if (logProgressBadge) {
+            logProgressBadge.style.display = 'inline-block';
+            logProgressBadge.textContent = isIndeterminate ? 'Đang xử lý...' : `${clamped}%`;
+        }
         if (isIndeterminate) {
             progressBarInner.classList.add('indeterminate');
         } else {
             progressBarInner.classList.remove('indeterminate');
-            progressBarInner.style.width = `${Math.min(100, Math.max(0, percent))}%`;
+            progressBarInner.style.width = `${clamped}%`;
         }
     }
 
@@ -290,6 +348,10 @@ GUIDELINES:
         progressBarContainer.style.display = 'none';
         progressBarInner.classList.remove('indeterminate');
         progressBarInner.style.width = '0%';
+        if (logProgressBadge) {
+            logProgressBadge.style.display = 'none';
+            logProgressBadge.textContent = '0%';
+        }
     }
 
     function setProcessingState(active, buttonText = "⚡ Phân Tích Hành Vi & Tạo SRT") {
@@ -297,6 +359,13 @@ GUIDELINES:
         btnProcess.disabled = active;
         btnSpinner.style.display = active ? 'inline-block' : 'none';
         btnText.textContent = buttonText;
+        if (logStatusDot) {
+            if (active) {
+                logStatusDot.className = 'log-status-dot running';
+            } else if (!logStatusDot.classList.contains('error')) {
+                logStatusDot.className = 'log-status-dot';
+            }
+        }
         if (!active) hideProgress();
     }
 
