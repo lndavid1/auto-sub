@@ -698,7 +698,7 @@ GUIDELINES:
     // ==========================================
     async function prepareMasterVideoForAI(clips, useFfmpeg, tempFilesTracker, clipInfo = null) {
         const hasFfmpeg = await checkFfmpegAvailable();
-        const tempDir = os.tmpdir();
+        const tempDir = getSafeWorkDir();
         const uniqueSuffix = `${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
 
         // TRƯỜNG HỢP 1: Nhiều clip trên Timeline -> Nén trực tiếp từng file video và ghép nối bằng FFmpeg
