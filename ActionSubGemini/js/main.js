@@ -514,6 +514,45 @@ GUIDELINES:
 
     btnClearLog.addEventListener('click', clearLog);
 
+    if (btnCopyLog) {
+        btnCopyLog.addEventListener('click', () => {
+            const lines = Array.from(statusLog.querySelectorAll('.log-line')).map(el => {
+                const t = el.querySelector('.log-time')?.textContent || '';
+                const tag = el.querySelector('.log-tag')?.textContent || '';
+                const msg = el.querySelector('.log-msg')?.textContent || el.textContent || '';
+                return t ? `[${t}] [${tag}] ${msg}` : msg;
+            });
+            const fullText = lines.join('\r\n');
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(fullText).catch(() => {});
+            } else {
+                const ta = document.createElement('textarea');
+                ta.value = fullText;
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+            }
+            const origLabel = btnCopyLog.textContent;
+            btnCopyLog.textContent = '✓ Đã copy';
+            setTimeout(() => { btnCopyLog.textContent = origLabel; }, 1400);
+        });
+    }
+
+    if (btnExpandLog && logPanel) {
+        btnExpandLog.addEventListener('click', () => {
+            const isExp = logPanel.classList.toggle('expanded');
+            btnExpandLog.textContent = isExp ? '⤡ Thu gọn' : '⤢ Mở rộng';
+            statusLog.scrollTop = statusLog.scrollHeight;
+        });
+    }
+
+    if (toggleStyleSectionBtn && styleSectionCard) {
+        toggleStyleSectionBtn.addEventListener('click', () => {
+            styleSectionCard.classList.toggle('collapsed');
+        });
+    }
+
     btnProcess.addEventListener('click', () => {
         if (!isProcessing) {
             startWorkflow();
