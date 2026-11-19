@@ -1872,8 +1872,36 @@ ${JSON.stringify(payloadForAI, null, 2)}`;
     }
 
     // ==========================================
-    // SUBTITLE FORMATTING & WORD-WRAP
+    // SUBTITLE FORMATTING & WORD-WRAP (SEQUENTIAL SPLIT - 100% WORD ORDER PRESERVED)
     // ==========================================
+    function wrapSubtitleTwoLines(text, maxChars = 42) {
+        const cleanText = (text || '').replace(/\r?\n/g, ' ').replace(/\s+/g, ' ').trim();
+        const limit = (maxChars && maxChars > 0) ? maxChars : 42;
+        if (cleanText.length <= limit) {
+            return cleanText;
+        }
+
+        const words = cleanText.split(/\s+/);
+        if (words.length <= 1) {
+            return cleanText;
+        }
+
+        let midIndex = Math.max(1, Math.floor(words.length / 2));
+        let bestDiff = Infinity;
+
+        for (let i = 1; i < words.length; i++) {
+            const firstHalfLen = words.slice(0, i).join(' ').length;
+            const secondHalfLen = words.slice(i).join(' ').length;
+            const diff = Math.abs(firstHalfLen - secondHalfLen);
+            if (diff < bestDiff) {
+                bestDiff = diff;
+                midIndex = i;
+            }
+        }
+
+        return words.slice(0, midIndex).join(' ') + '\n' + words.slice(midIndex).join(' ');
+    }
+
     function formatSubtitleText(srtContent, maxChars = 42, colorTag = '') {
         const blocks = srtContent.trim().split(/\r?\n\r?\n/);
         const formattedBlocks = [];
@@ -1886,26 +1914,7 @@ ${JSON.stringify(payloadForAI, null, 2)}`;
                 let text = lines.slice(2).join(' ').trim();
 
                 text = text.replace(/<\/?[^>]+(>|$)/g, "");
-
-                if (text.length > maxChars) {
-                    const words = text.split(/\s+/);
-                    let line1 = '';
-                    let line2 = '';
-                    const halfLength = Math.floor(text.length / 2);
-                    let currentLen = 0;
-
-                    for (let i = 0; i < words.length; i++) {
-                        const word = words[i];
-                        if (currentLen + word.length < halfLength || line1.length === 0) {
-                            line1 += (line1.length > 0 ? ' ' : '') + word;
-                            currentLen += word.length + 1;
-                        } else {
-                            line2 += (line2.length > 0 ? ' ' : '') + word;
-                        }
-                    }
-
-                    text = line2.length > 0 ? `${line1}\r\n${line2}` : line1;
-                }
+                text = wrapSubtitleTwoLines(text, maxChars).replace(/\r?\n/g, '\r\n');
 
                 if (colorTag && colorTag.length > 0) {
                     const subLines = text.split(/\r?\n/);
