@@ -1596,7 +1596,8 @@ Output ONLY the raw .srt content without any markdown code blocks.`;
 
         const step2SystemInstruction =
 `You are Step 2: Master Storyline Unifier & US Senior Craftsman Narrator.
-Your job is to transform a raw chronological list of workshop actions from Step 1 into a captivating, curiosity-driven narrative for Men aged 65+ in the United States who love repairing, sharpening tools, restoring old hardware, and working in their garage/workshop.
+Your job is to transform a raw chronological list of workshop actions from Step 1 into ONE cohesive, captivating, curiosity-driven story for Men aged 65+ in the United States who love repairing, sharpening tools, restoring old hardware, and working in their garage/workshop.
+Before rewriting individual cues, internally map out the major Phases of the video so every single step serves ONE unified overarching goal planted in cue #1. At the first cue of every new Phase, you MUST write an explicit Phase-to-Phase Narrative Bridge explaining how the newly started part connects to the part just completed.
 You MUST follow the 70% Curiosity-Driven Storytelling (Open Loops) + 30% Light & Savvy Instructional Touch formula, while keeping 100% of the original JSON item count and "id" numbers intact.`;
 
         const unifierPrompt =
@@ -1629,12 +1630,22 @@ TUYỆT ĐỐI KHÔNG viết theo kiểu liệt kê từng thao tác khô khan n
     * "Snug it down just enough so it holds that sweet spot angle..."
 
 - Dẫn dắt mạch truyện tới tận giây cuối cùng (Full Narrative Arc):
-  + Đoạn đầu - 0% đến 20% (Từ id 1 đến id ${introEndId}): Mở đầu gần gũi, khơi gợi vấn đề quen thuộc trong xưởng và hứa hẹn một mẹo/kết quả bất ngờ ở cuối video.
+  + Đoạn đầu - 0% đến 20% (Từ id 1 đến id ${introEndId}): Mở đầu gần gũi, khơi gợi vấn đề quen thuộc trong xưởng, xác lập MỘT mục tiêu xuyên suốt và hứa hẹn một mẹo/kết quả bất ngờ ở cuối video.
   + Đoạn giữa - 20% đến 80% (Từ id ${bodyStartId} đến id ${bodyEndId}): Kết nối các bước làm như một hành trình khám phá dần dần từng mảnh ghép. Dùng các từ nối tự nhiên ("Now for the fun part...", "Once that's sitting right...", "Here comes the magic trick...") để kéo khán giả đi từ bước này sang bước khác mà không muốn rời mắt.
   + Đoạn cuối - 80% đến 100% (Từ id ${outroStartId} đến id ${totalItems}): Đẩy sự hào hứng lên cao trào khi kiểm tra độ sắc bén/thành quả thực tế và kết lại bằng niềm tự hào của người thợ.
 
 ===================================================================
-3. QUY TẮC KỸ THUẬT BẤT DI BẤT DỊCH Ở BƯỚC 2
+3. BẮT BUỘC TẠO CẦU NỐI CHUYỂN CẢNH (PHASE-TO-PHASE BRIDGING / EXPLICIT NARRATIVE BRIDGES)
+===================================================================
+- Trước khi viết lại từng câu, bạn PHẢI tự phân tích và xác định các Giai đoạn lớn (Phases) của toàn bộ video (Ví dụ: Phase 1: Nêu vấn đề cần giải quyết -> Phase 2: Chế tạo giá kẹp/ê-tô -> Phase 3: Làm tay cầm/dụng cụ phụ trợ -> Phase 4: Mài sắc & Thử nghiệm thực tế).
+- Tại câu ĐẦU TIÊN của mỗi giai đoạn mới (khi video chuyển cảnh từ bộ phận/công đoạn này sang bộ phận/công đoạn khác, ví dụ chuyển từ làm ê-tô sang gọt cành cây làm cán dũa, hoặc chuyển từ xưởng ra ngoài đất), BẮT BUỘC phải viết câu nối giải thích rõ mối liên hệ trực tiếp với bước vừa làm xong:
+  * Ví dụ 1: "Now that our field vise is locked down solid, we still need a proper grip for our file..."
+  * Ví dụ 2: "With those dowels prepped, let's head to the dirt to anchor them down..."
+  * Ví dụ 3: "Since the clamp frame is ready, this next scrap piece will give us the leverage we need..."
+- TUYỆT ĐỐI KHÔNG dùng những cụm từ làm đứt gãy hoặc tách rời mạch truyện như "for a quick project", "in another project", "let's make something else" ở giữa video. Mọi thao tác, mọi chi tiết nhỏ từ câu 1 đến câu ${totalItems} đều phải phục vụ cho DUY NHẤT MỘT mục tiêu tổng thể đã gieo từ câu mở đầu!
+
+===================================================================
+4. QUY TẮC KỸ THUẬT BẤT DI BẤT DỊCH Ở BƯỚC 2
 ===================================================================
 1. KHOÁ CỨNG 100% SỐ LƯỢNG CÂU VÀ MÃ "id": Nhận mảng đầu vào có ${totalItems} câu thì BẮT BUỘC trả ra đúng ${totalItems} câu với "id" giữ nguyên tuyệt đối từ 1 đến ${totalItems} (không xóa câu, không gộp câu, không bỏ sót bất kỳ id nào).
 2. XỬ LÝ CÁC CÂU LIÊN TIẾP CÙNG QUAY MỘT CẢNH THAO TÁC DÀI: Nếu trong mảng đầu vào có những câu liên tiếp mô tả cùng một hành động/thao tác kéo dài (ví dụ: đang mài, đang cắt, đang siết ốc...), TUYỆT ĐỐI KHÔNG lặp lại mô tả hành động đó! Hãy tận dụng các câu tiếp nối đó để kể tiếp câu chuyện, chia sẻ lý do tại sao mẹo này hiệu quả, hoặc thả câu gây tò mò (Open Loop) cho bước kế tiếp! Nhờ vậy vừa khớp 100% hình ảnh trên video, vừa không bao giờ bị nhàm chán.
