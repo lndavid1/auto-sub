@@ -827,8 +827,23 @@ GUIDELINES:
     // ==========================================
     // BƯỚC 1B: CẮT PHÂN ĐOẠN 90 GIÂY (GỘP ĐUÔI NGẮN < 30S VÀO ĐOẠN KẾ CUỐI)
     // ==========================================
+    async function extractSingleChunkVideo(masterVideoPath, startSec, durationSec, chunkPath) {
+        await runFfmpegWithEncoder((useNvenc) => {
+            const args = [
+                '-y',
+                '-ss', Number(startSec || 0).toFixed(3),
+                '-t', Number(durationSec || 90).toFixed(3),
+                '-i', masterVideoPath,
+                '-vf', 'setpts=PTS-STARTPTS,scale=480:270:force_original_aspect_ratio=decrease,pad=480:270:(ow-iw)/2:(oh-ih)/2,fps=10'
+            ];
+            args.push(...getEncoderParams(useNvenc));
+            args.push('-pix_fmt', 'yuv420p', '-g', '20', '-an', '-movflags', '+faststart', chunkPath);
+            return args;
+        });
+    }
+
     async function segmentVideoIntoChunks(masterVideoPath, totalDuration, chunkDuration = 90, tempFilesTracker) {
-        const tempDir = os.tmpdir();
+        const tempDir = getSafeWorkDir();
         const uniqueSuffix = `${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
 
         const measuredMasterDur = await getActualVideoDurationSec(masterVideoPath);
@@ -869,18 +884,7 @@ GUIDELINES:
             const chunkPath = path.join(tempDir, `actionsub_chunk_${String(i).padStart(3, '0')}_${uniqueSuffix}.mp4`);
             tempFilesTracker.push(chunkPath);
 
-            await runFfmpegWithEncoder((useNvenc) => {
-                const args = [
-                    '-y',
-                    '-ss', win.planStartSec.toFixed(3),
-                    '-t', win.planDurationSec.toFixed(3),
-                    '-i', masterVideoPath,
-                    '-vf', 'setpts=PTS-STARTPTS,scale=480:270:force_original_aspect_ratio=decrease,pad=480:270:(ow-iw)/2:(oh-ih)/2,fps=10'
-                ];
-                args.push(...getEncoderParams(useNvenc));
-                args.push('-pix_fmt', 'yuv420p', '-g', '20', '-an', '-movflags', '+faststart', chunkPath);
-                return args;
-            });
+            await extractSingleChunkVideo(masterVideoPath, win.planStartSec, win.planDurationSec, chunkPath);
 
             if (fs.existsSync(chunkPath) && fs.statSync(chunkPath).size >= 1024) {
                 rawChunkFiles.push({
@@ -911,6 +915,8 @@ GUIDELINES:
             chunkItems.push({
                 chunkIndex: i,
                 chunkPath: item.chunkPath,
+                planStartSec: item.planStartSec,
+                planDurationSec: item.planDurationSec,
                 startSec: chunkOffsets[i],
                 durationSec: actualDurationSec[i],
                 actualDurationSec: actualDurationSec[i],
@@ -924,10 +930,10 @@ GUIDELINES:
     }
 
     /**
-     * Nén lại định dạng dự phòng (480x270, 10fps, yuv420p) nếu Google File API báo lỗi giải mã (Code 13)
+     * Nén lại định dạng dự phòng (480x270, 10fps, yuv420p) nếu Google File API báo lỗi giải mã (Code 13) hoặc file chunk bị thiếu
      */
     async function reencodeFallbackVideo(sourcePath, startSec, durationSec, tempFilesTracker) {
-        const tempDir = os.tmpdir();
+        const tempDir = getSafeWorkDir();
         const fallbackPath = path.join(tempDir, `fallback_${Date.now()}_${Math.random().toString(36).substring(2, 7)}.mp4`);
         tempFilesTracker.push(fallbackPath);
 
