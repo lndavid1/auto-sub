@@ -568,10 +568,26 @@ GUIDELINES:
     }
 
     /**
+     * Thư mục làm việc tạm thời riêng biệt để tránh bị Windows Temp Cleaner / Storage Sense tự động xoá file .mp4 khi đang chờ AI xử lý
+     */
+    function getSafeWorkDir() {
+        try {
+            const baseDir = (os && typeof os.homedir === 'function') ? os.homedir() : os.tmpdir();
+            const workDir = path.join(baseDir, '.actionsub_gemini_work');
+            if (!fs.existsSync(workDir)) {
+                fs.mkdirSync(workDir, { recursive: true });
+            }
+            return workDir;
+        } catch (e) {
+            return os.tmpdir();
+        }
+    }
+
+    /**
      * Nén trực tiếp 1 clip bằng FFmpeg (480x270, 10fps, yuv420p, No Audio) kèm cơ chế đảm bảo file > 1KB cho clip ngắn
      */
     async function encodeSingleClipGuaranteed(clip, partPath, clipIndex, uniqueSuffix, tempFilesTracker) {
-        const tempDir = os.tmpdir();
+        const tempDir = getSafeWorkDir();
         const srcIn = (clip.srcIn !== undefined) ? Number(clip.srcIn) : (Number(clip.inPoint) || 0);
         const srcOut = (clip.srcOut !== undefined) ? Number(clip.srcOut) : (Number(clip.outPoint) || 0);
         const seqStart = (clip.seqStart !== undefined) ? Number(clip.seqStart) : (Number(clip.start) || 0);
