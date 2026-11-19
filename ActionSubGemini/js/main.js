@@ -1324,12 +1324,18 @@ GUIDELINES:
     async function uploadAndActivateVideo(videoPath, apiKey, fallbackOptions, tempFilesTracker) {
         let currentPath = videoPath;
         let attempt = 0;
-        const maxAttempts = 2;
+        const maxAttempts = 3;
 
         while (attempt < maxAttempts) {
             attempt++;
             let uploadedFile = null;
             try {
+                if (!fs.existsSync(currentPath) || fs.statSync(currentPath).size < 1024) {
+                    if (fallbackOptions && fallbackOptions.sourcePath && fs.existsSync(fallbackOptions.sourcePath)) {
+                        addLog("⚠️ File phân đoạn tạm không tồn tại trên ổ đĩa, đang tự động trích xuất lại từ video gốc...", "warning");
+                        currentPath = await reencodeFallbackVideo(fallbackOptions.sourcePath, fallbackOptions.startSec, fallbackOptions.durationSec, tempFilesTracker);
+                    }
+                }
                 uploadedFile = await uploadVideoToGemini(currentPath, apiKey);
                 const activeFile = await waitForFileActive(uploadedFile, apiKey);
                 return { activeFile, uploadedFile };
@@ -1338,9 +1344,15 @@ GUIDELINES:
                     deleteGeminiFile(uploadedFile.name, apiKey);
                 }
 
-                if ((err.code === 13 || (err.message && err.message.includes('Code 13'))) && attempt < maxAttempts) {
-                    addLog("⚠️ File gặp lỗi giải mã trên Google Server (Code 13). Đang nén lại định dạng dự phòng (480x270, 10fps, yuv420p) và upload lại...", "warning");
+                const errMsg = (err && err.message) ? err.message : String(err);
+                const isCode13 = err.code === 13 || errMsg.includes('Code 13');
+                const isMissingFile = errMsg.includes('ENOENT') || errMsg.includes('không tồn tại trên ổ đĩa') || !fs.existsSync(currentPath);
+
+                if ((isCode13 || isMissingFile) && attempt < maxAttempts && fallbackOptions && fallbackOptions.sourcePath && fs.existsSync(fallbackOptions.sourcePath)) {
+                    addLog(`⚠️ File phân đoạn gặp sự cố (${isCode13 ? 'Code 13' : 'Thiếu file tạm'}). Đang nén lại dự phòng và upload lại (Lần ${attempt + 1}/${maxAttempts})...`, "warning");
                     currentPath = await reencodeFallbackVideo(fallbackOptions.sourcePath, fallbackOptions.startSec, fallbackOptions.durationSec, tempFilesTracker);
+                } else if (attempt < maxAttempts) {
+                    await sleep(2000);
                 } else {
                     throw err;
                 }
