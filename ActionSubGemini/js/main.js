@@ -1658,13 +1658,171 @@ Output ONLY the raw .srt content without any markdown code blocks.`;
     }
 
     /**
+     * Chuẩn hoá & Nội suy Timestamp (Sanitize & Interpolate Timestamps):
+     * - Kiểm tra toàn bộ mảng segments trước khi đưa vào Bước 2.
+     * - Nếu phát hiện câu nào bị trùng startSec hoặc nhảy ngược thời gian (startSec <= prev.startSec,
+     *   thường gặp ở ranh giới chunk 90s như 04:30), tự động nội suy chia đều khoảng trống giữa
+     *   prevSegment.endSec và nextValidSegment.startSec.
+     * - Đảm bảo 100% dãy timestamp tăng dần tuyệt đối (start[i] >= end[i-1], end[i] > start[i]),
+     *   không bao giờ nhảy lùi thời gian hay đè chữ lên nhau.
+     */
+    function sanitizeAndInterpolateTimestamps(segments) {
+        if (!Array.isArray(segments) || segments.length === 0) return [];
+
+        const tcRegex = /(\d{2}:\d{2}:\d{2}[,.]\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2}[,.]\d{3})/;
+        const MIN_CUE_SEC = 0.6;
+        const DEFAULT_CUE_SEC = 2.5;
+        let repairedCount = 0;
+
+        // Bước 1: Parse startSec / endSec cho từng segment
+        const items = segments.map((seg, idx) => {
+            let startSec = (typeof seg.startSec === 'number' && !isNaN(seg.startSec)) ? seg.startSec : null;
+            let endSec = (typeof seg.endSec === 'number' && !isNaN(seg.endSec)) ? seg.endSec : null;
+
+            if (startSec === null || endSec === null) {
+                const tcStr = seg.timecode || seg.time || '';
+                const m = tcStr.match(tcRegex);
+                if (m) {
+                    startSec = parseTimeToMs(m[1]) / 1000;
+                    endSec = parseTimeToMs(m[2]) / 1000;
+                } else {
+                    startSec = idx * DEFAULT_CUE_SEC;
+                    endSec = startSec + DEFAULT_CUE_SEC;
+                }
+            }
+
+            startSec = Math.max(0, startSec);
+            if (endSec <= startSec) {
+                endSec = startSec + DEFAULT_CUE_SEC;
+                repairedCount++;
+            }
+
+            return {
+                ...seg,
+                id: idx + 1,
+                startSec: startSec,
+                endSec: endSec,
+                text: (seg.text || '').replace(/\r?\n/g, ' ').trim()
+            };
+        });
+
+        // Bước 2: Phát hiện & nội suy các cụm câu bị trùng startSec hoặc nhảy ngược thời gian
+        let i = 1;
+        while (i < items.length) {
+            const prev = items[i - 1];
+            const curr = items[i];
+
+            if (curr.startSec <= prev.startSec + 0.05) {
+                const runStart = i;
+                const anchorStartSec = prev.startSec;
+                const anchorEndSec = Math.max(prev.endSec, prev.startSec + MIN_CUE_SEC);
+
+                // Tìm câu hợp lệ tiếp theo sau cụm bị lỗi (startSec > anchorEndSec và > anchorStartSec)
+                let nextValidIdx = -1;
+                for (let k = runStart + 1; k < items.length; k++) {
+                    if (items[k].startSec > anchorEndSec + 0.25 && items[k].startSec > anchorStartSec + 0.5) {
+                        nextValidIdx = k;
+                        break;
+                    }
+                }
+
+                const runEnd = (nextValidIdx === -1) ? (items.length - 1) : (nextValidIdx - 1);
+                const badCount = runEnd - runStart + 1;
+                repairedCount += badCount;
+
+                if (nextValidIdx !== -1) {
+                    const windowStart = anchorEndSec;
+                    const windowEnd = items[nextValidIdx].startSec;
+                    const availableSpan = windowEnd - windowStart;
+
+                    if (availableSpan >= badCount * 0.4) {
+                        const slotDur = availableSpan / badCount;
+                        for (let j = 0; j < badCount; j++) {
+                            const s = windowStart + j * slotDur;
+                            const e = windowStart + (j + 1) * slotDur;
+                            items[runStart + j].startSec = s;
+                            items[runStart + j].endSec = Math.max(s + 0.35, e);
+                        }
+                    } else {
+                        // Khoảng trống quá hẹp -> phân bổ tối thiểu từ anchorEndSec
+                        let cursor = windowStart;
+                        for (let j = 0; j < badCount; j++) {
+                            items[runStart + j].startSec = cursor;
+                            items[runStart + j].endSec = cursor + Math.max(MIN_CUE_SEC, availableSpan / badCount);
+                            cursor = items[runStart + j].endSec;
+                        }
+                    }
+                } else {
+                    // Cụm lỗi nằm ở cuối video -> chia đều mỗi câu DEFAULT_CUE_SEC nối tiếp
+                    let cursor = anchorEndSec;
+                    for (let j = 0; j < badCount; j++) {
+                        items[runStart + j].startSec = cursor;
+                        items[runStart + j].endSec = cursor + DEFAULT_CUE_SEC;
+                        cursor = items[runStart + j].endSec;
+                    }
+                }
+
+                i = runEnd + 1;
+            } else {
+                i++;
+            }
+        }
+
+        // Bước 3: Khóa chặt tính tăng dần tuyệt đối (start[k] >= end[k-1], end[k] > start[k])
+        for (let k = 0; k < items.length; k++) {
+            const cur = items[k];
+            if (k > 0) {
+                const prev = items[k - 1];
+                if (cur.startSec < prev.endSec) {
+                    if (cur.startSec >= prev.startSec + MIN_CUE_SEC) {
+                        // Cắt đuôi câu trước vừa khít đầu câu sau để không đè chữ
+                        prev.endSec = cur.startSec;
+                    } else {
+                        // Đẩy đầu câu sau bằng đuôi câu trước
+                        cur.startSec = prev.endSec;
+                        repairedCount++;
+                    }
+                }
+            }
+
+            if (cur.endSec < cur.startSec + MIN_CUE_SEC) {
+                const nextStart = (k < items.length - 1) ? items[k + 1].startSec : (cur.startSec + DEFAULT_CUE_SEC);
+                const maxAllowedEnd = (nextStart > cur.startSec + MIN_CUE_SEC) ? Math.min(cur.startSec + DEFAULT_CUE_SEC, nextStart) : (cur.startSec + MIN_CUE_SEC);
+                cur.endSec = Math.max(cur.startSec + MIN_CUE_SEC, maxAllowedEnd);
+            }
+        }
+
+        // Bước 4: Xuất lại chuỗi timecode SRT chuẩn xác đến từng mili-giây
+        const finalized = items.map((it, idx) => {
+            const startMs = Math.round(it.startSec * 1000);
+            const endMs = Math.max(startMs + 500, Math.round(it.endSec * 1000));
+            const tc = `${msToTimeStr(startMs)} --> ${msToTimeStr(endMs)}`;
+            return {
+                id: idx + 1,
+                startSec: startMs / 1000,
+                endSec: endMs / 1000,
+                time: tc,
+                timecode: tc,
+                text: it.text
+            };
+        });
+
+        if (repairedCount > 0) {
+            addLog(`🛠️ Đã tự động chuẩn hoá & nội suy lại ${repairedCount} mốc timestamp bị trùng/nhảy ngược (đảm bảo tăng dần tuyệt đối).`, "warning");
+        }
+
+        return finalized;
+    }
+
+    /**
      * BƯỚC 2 (Storyline Unifier):
-     * - Chuyển danh sách các câu phụ đề Bước 1 thành mảng JSON có đánh số ID cố định:
+     * - Chuẩn hoá & nội suy toàn bộ timestamp qua sanitizeAndInterpolateTimestamps(segments)
+     *   để đảm bảo 100% tăng dần tuyệt đối (start[i] >= end[i-1]).
+     * - Chuyển danh sách thành mảng JSON có đánh số ID cố định:
      *   [{ "id": 1, "time": "00:00:02,000 --> 00:00:05,500", "text": "..." }, ...]
-     * - Gửi phần "text" qua 1 lần gọi text-only để biên tập lại câu chữ mượt mà,
-     *   tự nhiên, thống nhất tên gọi dụng cụ và liên kết mạch lạc từ đầu đến cuối video.
-     * - Tự động chuyển sang model khác bất kể lý do gì khiến model hiện tại không hoạt động.
-     * - Ghép phần "text" đã biên tập vào đúng "time" gốc theo từng "id" (tuyệt đối không xoá câu, không lệch 1ms).
+     * - Gửi phần "text" qua 1 lần gọi text-only để biên tập mạch truyện liền mạch,
+     *   xoá sạch khớp nối chunk 90s, giấu bài gây tò mò (No-Spoiler) và chèn tương tác khán giả.
+     * - Ghép phần "text" đã biên tập vào đúng "time" đã chuẩn hoá theo từng "id" (tuyệt đối không xoá câu, không lệch 1ms).
      */
     async function unifyAndRefineStoryline(rawSrt, personaMode, storyContext, language, apiKey, modelCandidatesInput = ['gemini-3.8-flash']) {
         if (!rawSrt || !rawSrt.trim()) {
@@ -1676,12 +1834,8 @@ Output ONLY the raw .srt content without any markdown code blocks.`;
             throw new Error("Không tìm thấy câu phụ đề hợp lệ nào từ Bước 1 để biên tập.");
         }
 
-        // Chuyển thành mảng JSON có đánh số ID và mốc thời gian gốc cố định
-        const sourceItems = originalCues.map((cue, idx) => ({
-            id: idx + 1,
-            time: cue.timecode,
-            text: cue.text.replace(/\r?\n/g, ' ').trim()
-        }));
+        // Chuẩn hoá & nội suy toàn bộ timestamp (sửa triệt để lỗi trùng/nhảy ngược mốc thời gian)
+        const sourceItems = sanitizeAndInterpolateTimestamps(originalCues);
 
         // Chỉ gửi { id, text } lên AI để biên tập phần câu chữ
         const payloadForAI = sourceItems.map(item => ({
@@ -1693,17 +1847,18 @@ Output ONLY the raw .srt content without any markdown code blocks.`;
             ? modelCandidatesInput
             : [resolvePrimaryModel(modelCandidatesInput)];
 
-        addLog(`🔗 BƯỚC 2 (Storyline Unifier): Đang biên tập nối mạch truyện cho ${sourceItems.length} câu phụ đề (Khoá cứng 100% Timestamp gốc)...`, "step");
+        addLog(`🔗 BƯỚC 2 (Storyline Unifier): Đang biên tập nối mạch truyện cho ${sourceItems.length} câu phụ đề (Khoá cứng 100% Timestamp đã chuẩn hoá)...`, "step");
 
         const totalItems = sourceItems.length;
         const introEndId = Math.max(1, Math.round(totalItems * 0.2));
         const bodyStartId = Math.min(totalItems, introEndId + 1);
-        const bodyEndId = Math.max(bodyStartId, Math.round(totalItems * 0.8));
+        const bodyEndId = Math.max(bodyStartId, Math.round(totalItems * 0.85));
         const outroStartId = Math.min(totalItems, bodyEndId + 1);
+        const finalClimaxStartId = Math.max(1, totalItems - 2);
 
         const topicNote = (storyContext && storyContext.trim().length > 0)
-            ? `Chủ đề / Cốt truyện chính của video: "${storyContext.trim()}".`
-            : `Chủ đề chính của video: Tự suy luận dựa trên trình tự các bước thao tác từ đầu đến cuối danh sách để dẫn dắt thành một câu chuyện chế tạo/sửa chữa hấp dẫn.`;
+            ? `Chủ đề / Cốt truyện chính của video (chỉ dùng để hiểu bối cảnh, TUYỆT ĐỐI KHÔNG spoil/nói toạc kết quả ngay câu đầu): "${storyContext.trim()}".`
+            : `Chủ đề chính của video: Tự đọc lướt toàn bộ mảng câu từ đầu đến cuối để hiểu trình tự thật của video (làm đồ gá, đánh bóng, mài, thử nghiệm cuối cùng...).`;
 
         const isEnglishTarget = language.toLowerCase().includes('english') || language.toLowerCase().includes('tiếng anh') || language.toLowerCase() === 'en';
         const targetLangNote = isEnglishTarget
@@ -1712,9 +1867,14 @@ Output ONLY the raw .srt content without any markdown code blocks.`;
 
         const step2SystemInstruction =
 `You are Step 2: Master Storyline Unifier & US Senior Craftsman Narrator.
-Your job is to transform a raw chronological list of workshop actions from Step 1 into ONE cohesive, captivating, curiosity-driven story for Men aged 65+ in the United States who love repairing, sharpening tools, restoring old hardware, and working in their garage/workshop.
-Before rewriting individual cues, internally map out the major Phases of the video so every single step serves ONE unified overarching goal planted in cue #1. At the first cue of every new Phase, you MUST write an explicit Phase-to-Phase Narrative Bridge explaining how the newly started part connects to the part just completed.
-You MUST follow the 70% Curiosity-Driven Storytelling (Open Loops) + 30% Light & Savvy Instructional Touch formula, while keeping 100% of the original JSON item count and "id" numbers intact.`;
+Before rewriting ANY single cue, you MUST scan the ENTIRE chronological list from id 1 to the very last id to understand the true global arc of the video (where the jig/fixture is made, where polishing happens, where sharpening happens, and where the true final test occurs).
+Your audience is Men aged 65+ in the United States who love workshop DIY, sharpening, and restoring tools.
+Core rules you MUST obey:
+1. Seamless Global Continuity & Zero Chunk Seams: Eliminate any repeated "Start by..." or re-introductions caused by 90-second video chunking. Never declare "Finally, let's test it" or "Done!" in the middle of the video—reserve the climax strictly for the final 2-3 cues.
+2. No-Spoiler Curiosity Storytelling (70% Curiosity & Shop Banter + 30% Light Savvy Tips): NEVER reveal the final gadget name in cue #1. Whenever picking up a new/odd scrap material, hide its real purpose for 1-2 cues with teasing curiosity hooks before revealing the trick.
+3. Explicit Phase-to-Phase Bridges: At the first cue of every new major Phase, smoothly bridge from the part just finished to the next part so every action serves ONE unified goal.
+4. Natural Audience Engagement: Weave 3 to 5 warm, natural viewer-engagement questions/prompts evenly across the video (beginning, middle, and end).
+5. Hard-Lock 100% of original JSON item count and "id" numbers.`;
 
         const unifierPrompt =
 `Bạn nhận được một mảng JSON gồm ${totalItems} câu phụ đề thô từ Bước 1 (đánh số "id" cố định từ 1 đến ${totalItems}) ghi nhận các hành động theo đúng trình tự thời gian từ đầu đến cuối video.
@@ -1722,50 +1882,58 @@ ${topicNote}
 Ngôn ngữ đầu ra bắt buộc cho trường "text": ${targetLangNote}.
 
 ===================================================================
-1. CHÂN DUNG KHÁN GIẢ & VAI TRÒ NGƯỜI KỂ CHUYỆN (TARGET AUDIENCE & PERSONA)
+1. ĐỌC LƯỚT TOÀN CỤC & XÓA SẠCH "KHỚP NỐI CHUNK 90 GIÂY"
 ===================================================================
-- Đối tượng người xem: Nam giới trên 65 tuổi sống tại Hoa Kỳ, yêu thích sửa chữa, mài dũa dụng cụ, phục chế đồ cũ và làm việc trong xưởng (garage/workshop).
-- Giọng văn (Tone of Voice): Giống như một người bạn già lành nghề, hóm hỉnh, từng trải đang vừa làm vừa trò chuyện tâm tình trong xưởng.
-- Từ vựng đặc trưng: Thường xuyên sử dụng từ vựng đời thường, chuẩn chất thợ Mỹ (folks, fellas, old timer's trick, shop, workbench, scrap bin, bevel, burr, steady hand, sweet spot, good as new, slice like butter...) — hoặc từ ngữ tương đương đậm chất thợ lành nghề nếu xuất ra ngôn ngữ khác.
+- TRƯỚC KHI VIẾT LẠI BẤT KỲ CÂU NÀO: Hãy đọc lướt toàn bộ ${totalItems} câu từ id 1 đến id ${totalItems} để nắm rõ trình tự thật của cả video (đâu là phần làm đồ gá/ê-tô, đâu là phần đánh bóng/xử lý chi tiết, đâu là phần mài, đâu là lúc cắt thử cuối cùng).
+- LUẬT XÓA LẶP Ở RANH GIỚI 90 GIÂY: Dữ liệu Bước 1 được ghép từ nhiều đoạn 90 giây nên ở điểm nối giữa các đoạn có thể có 2 câu liên tiếp cùng mô tả một thao tác hoặc câu sau đột ngột nói "Start by..." / giới thiệu lại vật liệu vừa cầm. Câu phía sau TUYỆT ĐỐI KHÔNG được nói lại "Start by..." hay giới thiệu lại vật liệu đó — hãy biến nó thành câu dẫn tiếp nối tự nhiên, lời bình luận hóm hỉnh hoặc câu gợi mở tò mò!
+- LUẬT GIỮ CAO TRÀO ĐẾN PHÚT CHÓT: TUYỆT ĐỐI KHÔNG tuyên bố "Finally, let's test it", "All done!", "Now it's finished" ở giữa chừng khi phía sau vẫn còn các thao tác mài, kẹp hoặc chỉnh sửa. Chỉ được đẩy cao trào kết quả thực sự ở đúng 2-3 câu cuối cùng (từ id ${finalClimaxStartId} đến id ${totalItems}) khi video thực sự bước vào cảnh kiểm tra thành quả!
 
 ===================================================================
-2. CÔNG THỨC NỘI DUNG: 70% DẪN DẮT GÂY TÒ MÒ + 30% HƯỚNG DẪN NHẸ NHÀNG
+2. CHÂN DUNG KHÁN GIẢ & LUẬT "GIẤU BÀI & GÂY TÒ MÒ" (NO-SPOILER CURIOSITY)
 ===================================================================
-TUYỆT ĐỐI KHÔNG viết theo kiểu liệt kê từng thao tác khô khan như sách hướng dẫn sử dụng. Hãy biến các câu mô tả hành động thô từ Bước 1 thành một câu chuyện liền mạch:
-
-- Gieo sự tò mò liên tục (Open Loops / Curiosity Gap - 70%):
-  + Luôn khiến người xem tự hỏi điều gì sẽ xảy ra tiếp theo. Khi bắt đầu lấy một vật dụng hay cắt/mài một chi tiết, đừng nói toạc ra ngay kết quả, hãy dẫn dắt kiểu gợi mở:
-    * "Most folks would toss this old piece right in the trash, but watch what happens next..."
-    * "Now here is where it gets interesting—this little piece is the real secret to the whole setup..."
-    * "Hold on, don't worry about that rough edge yet, you'll see why we need it in just a minute..."
-    * "Wait till we put this edge to the test at the end—it’ll slice through like butter..."
-
-- Pha trộn một ít hướng dẫn đắt giá (Light & Savvy Instructional Touch - 30%):
-  + Chỉ lồng ghép hướng dẫn như những "bí quyết nhà nghề" nhẹ nhàng ngay lúc thao tác quan trọng diễn ra:
+- Đối tượng người xem: Nam giới trên 65 tuổi tại Hoa Kỳ, yêu thích sửa chữa, mài dũa dụng cụ, phục chế đồ cũ và làm việc trong xưởng (garage/workshop).
+- Giọng văn: Như một bác thợ già Mỹ lành nghề, hóm hỉnh, từng trải đang vừa làm vừa tâm tình với bạn bè trong xưởng. Dùng từ vựng đời thường chuẩn chất thợ Mỹ (folks, fellas, boys, old timer's trick, shop, workbench, scrap bin, bevel, burr, steady hand, sweet spot, good as new, slice like butter...).
+- CẤM NÓI TOẠC KẾT QUẢ TỪ SỚM (HIDE THE REVEAL):
+  + Câu mở đầu (id 1) TUYỆT ĐỐI KHÔNG nói thẳng tên món đồ sắp chế (KHÔNG nói "we're building a sharpening jig today" hay "today we're making a vise"). Hãy mở bằng câu hỏi hoặc nhận xét gợi tò mò về món phế liệu/dụng cụ đơn giản đang cầm trên tay và hứa hẹn một mẹo bất ngờ ở cuối video!
+  + Khi sang bước mới hoặc cầm lên vật liệu lạ (ống đồng, miếng gỗ, ke sắt, bu-lông cũ...), GIẤU công dụng thật của nó trong 1-2 câu đầu — thay vì giải thích ngay, hãy thả câu khơi gợi:
+    * "Bet you wouldn't guess what this old scrap of copper is about to become..."
+    * "Looks odd right now, doesn't it? Just wait a second..."
+    * "Don't blink on this next part—this little twist changes everything..."
+    * "Most folks would toss this right in the scrap bin, but watch closely..."
+- TỶ LỆ VÀNG 70% DẪN DẮT TÒ MÒ & KỂ CHUYỆN XƯỞNG + 30% MẸO HƯỚNG DẪN NHẸ:
+  + Chỉ hé lộ ngắn gọn "bí quyết nhà nghề" khi thao tác đã rõ ràng trên hình:
     * "Just keep a light touch right here so you don't overheat the steel..."
     * "Snug it down just enough so it holds that sweet spot angle..."
 
-- Dẫn dắt mạch truyện tới tận giây cuối cùng (Full Narrative Arc):
-  + Đoạn đầu - 0% đến 20% (Từ id 1 đến id ${introEndId}): Mở đầu gần gũi, khơi gợi vấn đề quen thuộc trong xưởng, xác lập MỘT mục tiêu xuyên suốt và hứa hẹn một mẹo/kết quả bất ngờ ở cuối video.
-  + Đoạn giữa - 20% đến 80% (Từ id ${bodyStartId} đến id ${bodyEndId}): Kết nối các bước làm như một hành trình khám phá dần dần từng mảnh ghép. Dùng các từ nối tự nhiên ("Now for the fun part...", "Once that's sitting right...", "Here comes the magic trick...") để kéo khán giả đi từ bước này sang bước khác mà không muốn rời mắt.
-  + Đoạn cuối - 80% đến 100% (Từ id ${outroStartId} đến id ${totalItems}): Đẩy sự hào hứng lên cao trào khi kiểm tra độ sắc bén/thành quả thực tế và kết lại bằng niềm tự hào của người thợ.
+===================================================================
+3. CẦU NỐI CHUYỂN CẢNH (PHASE-TO-PHASE BRIDGING) & MẠCH TRUYỆN THỐNG NHẤT
+===================================================================
+- Xác định rõ các Giai đoạn lớn (Phases) của video. Tại câu ĐẦU TIÊN của mỗi giai đoạn mới, BẮT BUỘC phải viết câu cầu nối giải thích rõ mối liên hệ với bước vừa làm xong:
+  * "Now that our field vise is locked down solid, we still need a proper grip for our file..."
+  * "With those dowels prepped, let's head to the dirt to anchor them down..."
+- TUYỆT ĐỐI KHÔNG dùng cụm từ tách rời mạch truyện như "for a quick project", "in another project" ở giữa video. Mọi thao tác từ id 1 đến id ${totalItems} đều phục vụ DUY NHẤT MỘT mục tiêu tổng thể.
+- Nhịp độ toàn bài:
+  + Đầu video (id 1 ➔ ${introEndId}): Mở đầu gần gũi, giấu kết quả, gieo tò mò về món đồ/vấn đề quen thuộc trong xưởng.
+  + Giữa video (id ${bodyStartId} ➔ ${bodyEndId}): Nối mượt từng giai đoạn bằng cầu nối tự nhiên, liên tục giấu bài ở các vật liệu mới, đan xen mẹo thợ ngắn gọn.
+  + Cuối video (id ${outroStartId} ➔ ${totalItems}): Dồn sự hồi hộp và chỉ bùng nổ cao trào kiểm tra thành quả ở đúng 2-3 câu cuối (id ${finalClimaxStartId} ➔ ${totalItems}).
 
 ===================================================================
-3. BẮT BUỘC TẠO CẦU NỐI CHUYỂN CẢNH (PHASE-TO-PHASE BRIDGING / EXPLICIT NARRATIVE BRIDGES)
+4. CHÈN LỜI THOẠI TƯƠNG TÁC KHÁN GIẢ TỰ NHIÊN (AUDIENCE ENGAGEMENT)
 ===================================================================
-- Trước khi viết lại từng câu, bạn PHẢI tự phân tích và xác định các Giai đoạn lớn (Phases) của toàn bộ video (Ví dụ: Phase 1: Nêu vấn đề cần giải quyết -> Phase 2: Chế tạo giá kẹp/ê-tô -> Phase 3: Làm tay cầm/dụng cụ phụ trợ -> Phase 4: Mài sắc & Thử nghiệm thực tế).
-- Tại câu ĐẦU TIÊN của mỗi giai đoạn mới (khi video chuyển cảnh từ bộ phận/công đoạn này sang bộ phận/công đoạn khác, ví dụ chuyển từ làm ê-tô sang gọt cành cây làm cán dũa, hoặc chuyển từ xưởng ra ngoài đất), BẮT BUỘC phải viết câu nối giải thích rõ mối liên hệ trực tiếp với bước vừa làm xong:
-  * Ví dụ 1: "Now that our field vise is locked down solid, we still need a proper grip for our file..."
-  * Ví dụ 2: "With those dowels prepped, let's head to the dirt to anchor them down..."
-  * Ví dụ 3: "Since the clamp frame is ready, this next scrap piece will give us the leverage we need..."
-- TUYỆT ĐỐI KHÔNG dùng những cụm từ làm đứt gãy hoặc tách rời mạch truyện như "for a quick project", "in another project", "let's make something else" ở giữa video. Mọi thao tác, mọi chi tiết nhỏ từ câu 1 đến câu ${totalItems} đều phải phục vụ cho DUY NHẤT MỘT mục tiêu tổng thể đã gieo từ câu mở đầu!
+- Rải đều khoảng 3 đến 5 câu tương tác trực tiếp với người xem xuyên suốt video (phân bổ tự nhiên vào đầu, giữa và gần cuối/cuối video), giọng gần gũi như bác thợ già nói chuyện với bạn bè cùng sở thích:
+  + Đầu / Giữa video (đặt câu hỏi mở hoặc đố vui về món đồ đang chế):
+    * "How many of you fellas still have a drawer full of these lying around?"
+    * "Take a quick guess—what do you think we're lining this up for?"
+  + Gần cuối / Cuối video (mời bình luận hoặc đánh giá thành quả):
+    * "Be honest in the comments—would you give this shop trick a try on your own blades?"
+    * "Let me know down below if you've got an even better way to do this, boys!"
 
 ===================================================================
-4. QUY TẮC KỸ THUẬT BẤT DI BẤT DỊCH Ở BƯỚC 2
+5. QUY TẮC KỸ THUẬT BẤT DI BẤT DỊCH Ở BƯỚC 2
 ===================================================================
 1. KHOÁ CỨNG 100% SỐ LƯỢNG CÂU VÀ MÃ "id": Nhận mảng đầu vào có ${totalItems} câu thì BẮT BUỘC trả ra đúng ${totalItems} câu với "id" giữ nguyên tuyệt đối từ 1 đến ${totalItems} (không xóa câu, không gộp câu, không bỏ sót bất kỳ id nào).
-2. XỬ LÝ CÁC CÂU LIÊN TIẾP CÙNG QUAY MỘT CẢNH THAO TÁC DÀI: Nếu trong mảng đầu vào có những câu liên tiếp mô tả cùng một hành động/thao tác kéo dài (ví dụ: đang mài, đang cắt, đang siết ốc...), TUYỆT ĐỐI KHÔNG lặp lại mô tả hành động đó! Hãy tận dụng các câu tiếp nối đó để kể tiếp câu chuyện, chia sẻ lý do tại sao mẹo này hiệu quả, hoặc thả câu gây tò mò (Open Loop) cho bước kế tiếp! Nhờ vậy vừa khớp 100% hình ảnh trên video, vừa không bao giờ bị nhàm chán.
-3. ĐỘ DÀI CHUẨN CHO NGƯỜI LỚN TUỔI: Mỗi câu "text" phải ngắn gọn, súc tích, dễ đọc (khoảng 8 - 15 từ/câu) và viết bằng ngôn ngữ: ${targetLangNote}.
+2. CÁC CÂU LIÊN TIẾP CÙNG MỘT CẢNH THAO TÁC DÀI: Tuyệt đối không lặp lại mô tả hành động đó — tận dụng các câu tiếp nối để kể tiếp câu chuyện, chia sẻ vì sao mẹo này hiệu quả, thả câu hỏi tương tác hoặc gieo Open Loop cho bước kế tiếp.
+3. ĐỘ DÀI CHUẨN CHO NGƯỜI LỚN TUỔI: Mỗi câu "text" ngắn gọn, súc tích, dễ đọc (khoảng 8 - 15 từ/câu) và viết bằng ngôn ngữ: ${targetLangNote}.
 4. ĐỊNH DẠNG ĐẦU RA: Chỉ trả về duy nhất mảng JSON hợp lệ theo cấu trúc: \`[{"id": 1, "text": "..."}, {"id": 2, "text": "..."}, ...]\`.
 
 MẢNG JSON ĐẦU VÀO (${totalItems} PHẦN TỬ):
